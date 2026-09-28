@@ -1,7 +1,9 @@
 ///! Compute PDQ hash of an image.
 ///! The PDQ algorithm was developed and open-sourced by Facebook (now Meta) in 2019.
-///! It specifies a transformation which converts images into a binary format ('PDQ Hash') whereby 'perceptually similar’ images produce similar outputs.
-///! It was designed to offer an industry standard for representing images to collaborate on threat mitigation.
+///! It specifies a transformation which converts images into a binary format ('PDQ Hash') whereby
+///! 'perceptually similar’ images produce similar outputs.
+///! It was designed to offer an industry standard for representing images to collaborate on threat
+///! mitigation.
 use std::ops::Deref;
 
 pub use image;
@@ -270,13 +272,13 @@ fn decimate_float<const OUT_NUM_ROWS: usize, const OUT_NUM_COLS: usize>(
 
 // ----------------------------------------------------------------
 // This is all heuristic (see the PDQ hashing doc). Quantization matters since
-// we want to count *significant* gradients, not just the some of many small
+// we want to count *significant* gradients, not just the sum of many small
 // ones. The constants are all manually selected, and tuned as described in the
 // document.
 fn pdq_image_domain_quality_metric<const OUT_NUM_ROWS: usize, const OUT_NUM_COLS: usize>(
     buffer64x64: &[[f32; OUT_NUM_COLS]; OUT_NUM_ROWS],
 ) -> f32 {
-    let mut gradient_sum = 0.0;
+    let mut gradient_sum = 0;
 
     for i in 0..(OUT_NUM_ROWS - 1) {
         for j in 0..OUT_NUM_COLS {
@@ -431,7 +433,9 @@ pub fn generate_pdq_full_size(image: &image::DynamicImage) -> ([u8; HASH_LENGTH]
 /// Returns PDQ hash and quality of an image.
 ///
 /// Returns None if image is too small to generate a useful hash.
-/// This will first downsize the image in RGB space using image crate, which is more efficient than computing PDQ on the full size image. Some divergence from reference implementation is expected.
+/// This will first downsize the image in RGB space using image crate, which is more efficient than
+/// computing PDQ on the full size image. Some divergence from reference implementation is
+/// expected.
 pub fn generate_pdq(image: &image::DynamicImage) -> Option<([u8; HASH_LENGTH], f32)> {
     if image.width() < MIN_HASHABLE_DIM || image.height() < MIN_HASHABLE_DIM {
         return None;

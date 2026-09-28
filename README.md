@@ -17,7 +17,7 @@ Additionally, PDQ hashes for rotations and mirrors of the original image can be 
 ![Comparing two bit strings](/docs/rotation.png)
 Example: PDQ Hash of mirrored original image only requires manipulation of the transform
 
-DCT Manipulation needed for corresponding PDQ Hash
+DCT matrix manipulation needed for corresponding PDQ Hash
 * Mirrored Y -> Negate alternate columns
 * Mirrored X -> Negate alternate rows
 * Mirrored Main Diagonal -> Transpose
@@ -41,3 +41,4 @@ Transformations that result in similar hashes:
 * Mirroring (when additional hashes compared)
 * Noise or filter applied
 * Light logos
+
