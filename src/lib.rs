@@ -386,6 +386,20 @@ fn torben_median(m: &[f32]) -> Option<f32> {
     }
 }
 
+fn rotate90(input: &[f32; DCT_OUTPUT_MATRIX_SIZE]) -> [f32; DCT_OUTPUT_MATRIX_SIZE] {
+    let mut result = [0.0; DCT_OUTPUT_MATRIX_SIZE];
+    for i in 0..DCT_OUTPUT_W_H {
+        for j in 0..DCT_OUTPUT_W_H {
+            if j & 1 != 0 {
+                result[j * DCT_OUTPUT_W_H + i] = input[i * DCT_OUTPUT_W_H + j];
+            } else {
+                result[j * DCT_OUTPUT_W_H + i] = -input[i * DCT_OUTPUT_W_H + j];
+            }
+        }
+    }
+    result
+}
+
 fn pdq_buffer16x16_to_bits(input: &[f32; DCT_OUTPUT_MATRIX_SIZE]) -> [u8; HASH_LENGTH] {
     let dct_median = torben_median(input).unwrap();
     let mut hash = [0; HASH_LENGTH];
@@ -452,9 +466,44 @@ pub fn generate_pdq(image: &image::DynamicImage) -> Option<([u8; HASH_LENGTH], f
     Some(out)
 }
 
+/// Returns PDQ hash fo full image rotated 90 degrees.
+///
+/// The 90 degrees rotated hash should be similar to the hash of rotatef image
+pub fn generate_pdq_rotate90(image: &image::DynamicImage) -> ([u8; HASH_LENGTH], f32) {
+    let (num_cols, num_rows, mut image) = to_luma_image(image);
+    let window_size_along_rows = compute_jarosz_filter_window_size(num_cols, BUFFER_W_H);
+    let window_size_along_cols = compute_jarosz_filter_window_size(num_rows, BUFFER_W_H);
+
+    jarosz_filter_float(
+        image.as_mut_slice(),
+        num_rows,
+        num_cols,
+        window_size_along_rows,
+        window_size_along_cols,
+        PDQ_NUM_JAROSZ_XY_PASSES,
+    );
+
+    let buffer64x64 =
+        decimate_float::<BUFFER_W_H, BUFFER_W_H>(image.as_slice(), num_rows, num_cols);
+
+    let buffer16x16 = rotate90(&dct64_to_16(&buffer64x64));
+    (
+        pdq_buffer16x16_to_bits(&buffer16x16),
+        pdq_image_domain_quality_metric(&buffer64x64),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn hamming_distance(a: &str, b: &str) -> usize {
+        let a = hex::decode(a).unwrap();
+        let b = hex::decode(b).unwrap();
+        assert_eq!(a.len(), HASH_LENGTH);
+        assert_eq!(b.len(), HASH_LENGTH);
+        std::iter::zip(a.iter(), b.iter()).map(|(a,b)| a != b).filter(|v|*v).count()
+    }
 
     #[test]
     fn test_load() {
@@ -494,6 +543,36 @@ mod tests {
         assert_eq!(
             "a5f05aa8a4896a17c906a2d85aaaab07b61b5b42f8fc07fc87c3d0741bfcb0fa",
             load(include_bytes!("test_data/bridge-8-flip-minus-1.jpg"))
+        );
+    }
+
+    #[test]
+    fn test_rotate() {
+        fn rotate90(data: &[u8]) -> String {
+            let hash = generate_pdq_rotate90(&image::load_from_memory(data).unwrap()).0;
+            hex::encode(hash)
+        }
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-2-rotate-90.jpg' (in test_load)
+                "30a10efd71cc3d429013d48d0ffffc52e34e0e17ada952a9d29685211ea9e5af",
+                &rotate90(include_bytes!("test_data/bridge-1-original.jpg"))),
+            2
+        );
+ 
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-3-rotate-180.jpg' (in test_load)
+                "adad5a64b5a142e75b62a09857da895ae63b847fc23794b766b319361bc93188",
+                &rotate90(include_bytes!("test_data/bridge-2-rotate-90.jpg"))),
+            7
+        );
+
+        assert_eq!(
+            hamming_distance(
+                "f8f8f0cee0f4a84f06370a22038f63f0b36e2ed596621e1d33e6b39c4e9c9b22",
+                &rotate90(include_bytes!("test_data/bridge-4-rotate-270.jpg"))),
+            8
         );
     }
 }
