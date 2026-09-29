@@ -4,7 +4,6 @@ version = "0.1.1"
 edition = "2018"
 license = "Apache-2.0"
 readme = "README.md"
-license-file = "LICENSE"
 keywords = ["image", "pdq", "fuzzy", "hash"]
 repository = "https://github.com/darwinium-com/pdqhash"
 description = "Perceptual Hashing, originally designed by Facebook. Identify the same image even after some modifications."
