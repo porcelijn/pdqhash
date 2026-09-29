@@ -1,9 +1,9 @@
-///! Compute PDQ hash of an image.
-///! The PDQ algorithm was developed and open-sourced by Facebook (now Meta) in 2019.
-///! It specifies a transformation which converts images into a binary format ('PDQ Hash') whereby
-///! 'perceptually similar’ images produce similar outputs.
-///! It was designed to offer an industry standard for representing images to collaborate on threat
-///! mitigation.
+//! Compute PDQ hash of an image.
+//! The PDQ algorithm was developed and open-sourced by Facebook (now Meta) in 2019.
+//! It specifies a transformation which converts images into a binary format ('PDQ Hash') whereby
+//! 'perceptually similar’ images produce similar outputs.
+//! It was designed to offer an industry standard for representing images to collaborate on threat
+//! mitigation.
 use std::ops::Deref;
 
 pub use image;
@@ -17,6 +17,9 @@ const LUMA_FROM_B_COEFF: f32 = 0.114;
 mod dct;
 mod downscaling;
 mod torben;
+mod transform;
+
+pub use transform::Transform;
 
 //  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // Minimum size tested.
@@ -194,25 +197,11 @@ fn pdq_image_domain_quality_metric<const OUT_NUM_ROWS: usize, const OUT_NUM_COLS
 const BUFFER_W_H: usize = 64;
 
 const DCT_OUTPUT_W_H: usize = 16;
-const DCT_OUTPUT_MATRIX_SIZE: usize = DCT_OUTPUT_W_H * DCT_OUTPUT_W_H;
+type DctOutput = [f32; DCT_OUTPUT_W_H * DCT_OUTPUT_W_H];
 
-const HASH_LENGTH: usize = DCT_OUTPUT_MATRIX_SIZE / 8;
+const HASH_LENGTH: usize = DCT_OUTPUT_W_H * DCT_OUTPUT_W_H / 8;
 
-fn rotate90(input: &[f32; DCT_OUTPUT_MATRIX_SIZE]) -> [f32; DCT_OUTPUT_MATRIX_SIZE] {
-    let mut result = [0.0; DCT_OUTPUT_MATRIX_SIZE];
-    for i in 0..DCT_OUTPUT_W_H {
-        for j in 0..DCT_OUTPUT_W_H {
-            if j & 1 != 0 {
-                result[j * DCT_OUTPUT_W_H + i] = input[i * DCT_OUTPUT_W_H + j];
-            } else {
-                result[j * DCT_OUTPUT_W_H + i] = -input[i * DCT_OUTPUT_W_H + j];
-            }
-        }
-    }
-    result
-}
-
-fn pdq_buffer16x16_to_bits(input: &[f32; DCT_OUTPUT_MATRIX_SIZE]) -> [u8; HASH_LENGTH] {
+fn pdq_buffer16x16_to_bits(input: &DctOutput) -> [u8; HASH_LENGTH] {
     let dct_median = torben::median(input).unwrap();
     let mut hash = [0; HASH_LENGTH];
 
@@ -232,7 +221,7 @@ fn pdq_buffer16x16_to_bits(input: &[f32; DCT_OUTPUT_MATRIX_SIZE]) -> [u8; HASH_L
 /// Returns PDQ hash and quality of an image without first downscaling.
 ///
 /// It is bit-for-bit compatible with the expected output from the Java version provided by facebook.
-pub fn generate_pdq_full_size(image: &image::DynamicImage) -> ([u8; HASH_LENGTH], f32) {
+pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: Transform) -> ([u8; HASH_LENGTH], f32) {
     let (num_cols, num_rows, mut image) = to_luma_image(image);
     let window_size_along_rows = downscaling::compute_jarosz_filter_window_size(num_cols, BUFFER_W_H);
     let window_size_along_cols = downscaling::compute_jarosz_filter_window_size(num_rows, BUFFER_W_H);
@@ -249,7 +238,7 @@ pub fn generate_pdq_full_size(image: &image::DynamicImage) -> ([u8; HASH_LENGTH]
     let buffer64x64 =
         decimate_float::<BUFFER_W_H, BUFFER_W_H>(image.as_slice(), num_rows, num_cols);
 
-    let buffer16x16 = dct::dct64_to_16(&buffer64x64);
+    let buffer16x16 = transform.apply(&dct::dct64_to_16(&buffer64x64));
     (
         pdq_buffer16x16_to_bits(&buffer16x16),
         pdq_image_domain_quality_metric(&buffer64x64),
@@ -262,7 +251,7 @@ pub fn generate_pdq_full_size(image: &image::DynamicImage) -> ([u8; HASH_LENGTH]
 /// This will first downsize the image in RGB space using image crate, which is more efficient than
 /// computing PDQ on the full size image. Some divergence from reference implementation is
 /// expected.
-pub fn generate_pdq(image: &image::DynamicImage) -> Option<([u8; HASH_LENGTH], f32)> {
+pub fn generate_pdq(image: &image::DynamicImage, transform: Transform) -> Option<([u8; HASH_LENGTH], f32)> {
     if image.width() < MIN_HASHABLE_DIM || image.height() < MIN_HASHABLE_DIM {
         return None;
     }
@@ -271,43 +260,18 @@ pub fn generate_pdq(image: &image::DynamicImage) -> Option<([u8; HASH_LENGTH], f
         generate_pdq_full_size(&image.thumbnail_exact(
             DOWNSAMPLE_DIMS.min(image.width()),
             DOWNSAMPLE_DIMS.min(image.height()),
-        ))
+        ),
+        transform)
     } else {
-        generate_pdq_full_size(&image)
+        generate_pdq_full_size(image, transform)
     };
     Some(out)
-}
-
-/// Returns PDQ hash fo full image rotated 90 degrees.
-///
-/// The 90 degrees rotated hash should be similar to the hash of rotatef image
-pub fn generate_pdq_rotate90(image: &image::DynamicImage) -> ([u8; HASH_LENGTH], f32) {
-    let (num_cols, num_rows, mut image) = to_luma_image(image);
-    let window_size_along_rows = downscaling::compute_jarosz_filter_window_size(num_cols, BUFFER_W_H);
-    let window_size_along_cols = downscaling::compute_jarosz_filter_window_size(num_rows, BUFFER_W_H);
-
-    downscaling::jarosz_filter_float(
-        image.as_mut_slice(),
-        num_rows,
-        num_cols,
-        window_size_along_rows,
-        window_size_along_cols,
-        PDQ_NUM_JAROSZ_XY_PASSES,
-    );
-
-    let buffer64x64 =
-        decimate_float::<BUFFER_W_H, BUFFER_W_H>(image.as_slice(), num_rows, num_cols);
-
-    let buffer16x16 = rotate90(&dct::dct64_to_16(&buffer64x64));
-    (
-        pdq_buffer16x16_to_bits(&buffer16x16),
-        pdq_image_domain_quality_metric(&buffer64x64),
-    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use Transform::*;
 
     fn hamming_distance(a: &str, b: &str) -> usize {
         let a = hex::decode(a).unwrap();
@@ -320,7 +284,8 @@ mod tests {
     #[test]
     fn test_load() {
         fn load(data: &[u8]) -> String {
-            let hash = generate_pdq_full_size(&image::load_from_memory(data).unwrap()).0;
+            let image = image::load_from_memory(data).unwrap();
+            let hash = generate_pdq_full_size(&image, PassThrough).0;
             hex::encode(hash)
         }
 
@@ -361,7 +326,8 @@ mod tests {
     #[test]
     fn test_rotate() {
         fn rotate90(data: &[u8]) -> String {
-            let hash = generate_pdq_rotate90(&image::load_from_memory(data).unwrap()).0;
+            let image = image::load_from_memory(data).unwrap();
+            let hash = generate_pdq_full_size(&image, Rotate90).0;
             hex::encode(hash)
         }
         assert_eq!(

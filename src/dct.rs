@@ -1,10 +1,10 @@
-use crate::{BUFFER_W_H, DCT_OUTPUT_MATRIX_SIZE, DCT_OUTPUT_W_H};
+use crate::{BUFFER_W_H, DctOutput, DCT_OUTPUT_W_H};
 
 /// Perform a discrete cosine transform from a 64x64 matrix and compute only a 16x16 corner of it.
 /// Quicker than computing the whole thing.
 pub(crate) fn dct64_to_16<const ROWS: usize, const COLS: usize>(
     input: &[[f32; COLS]; ROWS],
-) -> [f32; DCT_OUTPUT_MATRIX_SIZE] {
+) -> DctOutput {
     const { assert!(COLS <= BUFFER_W_H); }
     const { assert!(ROWS <= BUFFER_W_H); }
 
@@ -21,7 +21,7 @@ pub(crate) fn dct64_to_16<const ROWS: usize, const COLS: usize>(
         }
     }
 
-    let mut output = [0.0; DCT_OUTPUT_MATRIX_SIZE];
+    let mut output = [0.0; DCT_OUTPUT_W_H * DCT_OUTPUT_W_H];
     for i in 0..DCT_OUTPUT_W_H {
         let start = i * DCT_OUTPUT_W_H;
         let output_row = &mut output[start..start + DCT_OUTPUT_W_H];
@@ -275,5 +275,5 @@ const fn generate() -> [[f32; BUFFER_W_H]; DCT_OUTPUT_W_H] {
         }
         i += 1;
     }
-    return matrix;
+    matrix
 }
