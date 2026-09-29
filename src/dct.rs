@@ -1,6 +1,36 @@
-use crate::{BUFFER_W_H, DCT_OUTPUT_W_H};
+use crate::{BUFFER_W_H, DCT_OUTPUT_MATRIX_SIZE, DCT_OUTPUT_W_H};
 
-pub const DCT_MATRIX: [[u32; BUFFER_W_H]; DCT_OUTPUT_W_H] = [
+/// Perform a discrete cosine transform from a 64x64 matrix and compute only a 16x16 corner of it.
+/// Quicker than computing the whole thing.
+pub(crate) fn dct64_to_16<const OUT_NUM_ROWS: usize, const OUT_NUM_COLS: usize>(
+    input: &[[f32; OUT_NUM_COLS]; OUT_NUM_ROWS],
+) -> [f32; DCT_OUTPUT_MATRIX_SIZE] {
+    let mut intermediate_matrix = [[0.0; OUT_NUM_COLS]; DCT_OUTPUT_W_H];
+    for i in 0..DCT_OUTPUT_W_H {
+        for j in 0..OUT_NUM_COLS {
+            let mut sumk = 0.0;
+            for k in 0..BUFFER_W_H {
+                sumk += f32::from_bits(DCT_MATRIX[i][k]) * input[k][j];
+            }
+
+            intermediate_matrix[i][j] = sumk;
+        }
+    }
+
+    let mut output = [0.0; DCT_OUTPUT_MATRIX_SIZE];
+    for i in 0..DCT_OUTPUT_W_H {
+        for j in 0..DCT_OUTPUT_W_H {
+            let mut sumk = 0.0;
+            for k in 0..BUFFER_W_H {
+                sumk += intermediate_matrix[i][k] * f32::from_bits(DCT_MATRIX[j][k]);
+            }
+            output[i * DCT_OUTPUT_W_H + j] = sumk;
+        }
+    }
+    output
+}
+
+const DCT_MATRIX: [[u32; BUFFER_W_H]; DCT_OUTPUT_W_H] = [
     [
         0x3e34f6fe, 0x3e348763, 0x3e33a872, 0x3e325ab4, 0x3e309ef6, 0x3e2e764c, 0x3e2be209,
         0x3e28e3c6, 0x3e257d59, 0x3e21b0dd, 0x3e1d80a8, 0x3e18ef51, 0x3e13ffa8, 0x3e0eb4b9,
@@ -194,3 +224,4 @@ pub const DCT_MATRIX: [[u32; BUFFER_W_H]; DCT_OUTPUT_W_H] = [
         0x3e273d75,
     ],
 ];
+
