@@ -4,14 +4,17 @@ use crate::{DctOutput, DCT_OUTPUT_W_H};
 pub enum Transform {
     PassThrough,
     Rotate90,
+    Rotate180,
 	// todo
 }
 
 impl Transform {
-    pub fn apply(&self, input: &DctOutput) -> DctOutput {
+    pub fn apply(&self, matrix: &mut DctOutput) {
         match self {
-            Self::PassThrough => *input,
-            Self::Rotate90 => rotate90(input),
+            Self::PassThrough => {},
+            Self::Rotate90 => *matrix = rotate90(matrix),
+            Self::Rotate180 => rotate180(matrix),
+            // todo
         }
     }
 }
@@ -28,5 +31,16 @@ fn rotate90(input: &DctOutput) -> DctOutput {
         }
     }
     result
+}
+
+fn rotate180(matrix: &mut DctOutput) {
+    for i in 0..DCT_OUTPUT_W_H {
+        for j in 0..DCT_OUTPUT_W_H {
+            if (i + j) & 1 != 0 {
+                let cell = &mut matrix[i * DCT_OUTPUT_W_H + j];
+                *cell = -*cell;
+            }
+        }
+    }
 }
 

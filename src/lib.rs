@@ -238,7 +238,8 @@ pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: Transform)
     let buffer64x64 =
         decimate_float::<BUFFER_W_H, BUFFER_W_H>(image.as_slice(), num_rows, num_cols);
 
-    let buffer16x16 = transform.apply(&dct::dct64_to_16(&buffer64x64));
+    let mut buffer16x16 = dct::dct64_to_16(&buffer64x64);
+    transform.apply(&mut buffer16x16);
     (
         pdq_buffer16x16_to_bits(&buffer16x16),
         pdq_image_domain_quality_metric(&buffer64x64),
@@ -274,6 +275,7 @@ mod tests {
     use Transform::*;
 
     fn hamming_distance(a: &str, b: &str) -> usize {
+        println!("{a}\n{b}");
         let a = hex::decode(a).unwrap();
         let b = hex::decode(b).unwrap();
         assert_eq!(a.len(), HASH_LENGTH);
@@ -330,6 +332,7 @@ mod tests {
             let hash = generate_pdq_full_size(&image, Rotate90).0;
             hex::encode(hash)
         }
+
         assert_eq!(
             hamming_distance(
                 // hash copy-pasted from 'bridge-2-rotate-90.jpg' (in test_load)
@@ -352,5 +355,28 @@ mod tests {
                 &rotate90(include_bytes!("test_data/bridge-4-rotate-270.jpg"))),
             8
         );
+
+        fn rotate180(data: &[u8]) -> String {
+            let image = image::load_from_memory(data).unwrap();
+            let hash = generate_pdq_full_size(&image, Rotate180).0;
+            hex::encode(hash)
+        }
+
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-3-rotate-180.jpg' (in test_load)
+                "adad5a64b5a142e75b62a09857da895ae63b847fc23794b766b319361bc93188",
+                &rotate180(include_bytes!("test_data/bridge-1-original.jpg"))),
+            7
+        );
+
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-4-rotate-270.jpg'
+                "a5f0a457a48995e8c9065c275aaa5498b61ba4bdf8fcf80387c32f8b1bfc4f05",
+                &rotate180(include_bytes!("test_data/bridge-2-rotate-90.jpg"))),
+            8
+        );
+
     }
 }
