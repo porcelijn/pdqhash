@@ -7,9 +7,10 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     use pdqhash::Transform::PassThrough;
     c.bench_function("load_bridge", |b| {
-        b.iter(|| pdqhash::generate_pdq_full_size(&image, PassThrough))
+        b.iter(|| pdqhash::generate_pdq_full_size(&image, &PassThrough))
     });
 }
 
 criterion_group!(benches, criterion_benchmark);
 criterion_main!(benches);
+

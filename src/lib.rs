@@ -19,7 +19,7 @@ mod downscaling;
 mod torben;
 mod transform;
 
-pub use transform::Transform;
+pub use transform::{Orientation, Transform};
 
 //  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 // Minimum size tested.
@@ -221,7 +221,7 @@ fn pdq_buffer16x16_to_bits(input: &DctOutput) -> [u8; HASH_LENGTH] {
 /// Returns PDQ hash and quality of an image without first downscaling.
 ///
 /// It is bit-for-bit compatible with the expected output from the Java version provided by facebook.
-pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: Transform) -> ([u8; HASH_LENGTH], f32) {
+pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: &Transform) -> ([u8; HASH_LENGTH], f32) {
     let (num_cols, num_rows, mut image) = to_luma_image(image);
     let window_size_along_rows = downscaling::compute_jarosz_filter_window_size(num_cols, BUFFER_W_H);
     let window_size_along_cols = downscaling::compute_jarosz_filter_window_size(num_rows, BUFFER_W_H);
@@ -252,7 +252,7 @@ pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: Transform)
 /// This will first downsize the image in RGB space using image crate, which is more efficient than
 /// computing PDQ on the full size image. Some divergence from reference implementation is
 /// expected.
-pub fn generate_pdq(image: &image::DynamicImage, transform: Transform) -> Option<([u8; HASH_LENGTH], f32)> {
+pub fn generate_pdq(image: &image::DynamicImage, transform: &Transform) -> Option<([u8; HASH_LENGTH], f32)> {
     if image.width() < MIN_HASHABLE_DIM || image.height() < MIN_HASHABLE_DIM {
         return None;
     }
@@ -286,7 +286,7 @@ mod tests {
     fn test_load() {
         fn load(data: &[u8]) -> String {
             let image = image::load_from_memory(data).unwrap();
-            let hash = generate_pdq_full_size(&image, PassThrough).0;
+            let hash = generate_pdq_full_size(&image, &PassThrough).0;
             hex::encode(hash)
         }
 
@@ -328,7 +328,7 @@ mod tests {
     fn test_rotate() {
         fn rotate<const ANGLE: i32>(data: &[u8]) -> String {
             let image = image::load_from_memory(data).unwrap();
-            let hash = generate_pdq_full_size(&image, Rotate(ANGLE)).0;
+            let hash = generate_pdq_full_size(&image, &Rotate(ANGLE)).0;
             hex::encode(hash)
         }
 
@@ -379,4 +379,46 @@ mod tests {
             8
         );
     }
+
+    #[test]
+    fn test_flip() {
+        use transform::Orientation::*;
+
+        fn flip(orientation: Orientation, data: &[u8]) -> String {
+            let image = image::load_from_memory(data).unwrap();
+            let hash = generate_pdq_full_size(&image, &Flip(orientation)).0;
+            hex::encode(hash)
+        }
+
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-5-flipx.jpg'
+                "f8f80f31e0f417b20e37f5cd028f980fb36ed02a9662c1e233e64c634e9c64dd",
+                &flip(X, include_bytes!("test_data/bridge-1-original.jpg"))),
+            7
+        );
+
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-6-flipy.jpg'
+                "0dad2599b1a1bd1a5362576742da32a5e63b7380c2374b4866b366c91bc9ce77",
+                &flip(Y, include_bytes!("test_data/bridge-1-original.jpg"))),
+            2
+        );
+
+        // Perfect match with hash copy-pasted from 'bridge-7-flip-plus-1.jpg'
+        assert_eq!(
+            "f0a5e102f1ccc0bd945308720fff038de34ef1e8ada9a956d2967ade5ea91a50",
+            &flip(Plus1, include_bytes!("test_data/bridge-1-original.jpg")),
+        );
+        
+        assert_eq!(
+            hamming_distance(
+                // hash copy-pasted from 'bridge-8-flip-minus-1.jpg'
+                "a5f05aa8a4896a17c906a2d85aaaab07b61b5b42f8fc07fc87c3d0741bfcb0fa",
+                 &flip(Minus1, include_bytes!("test_data/bridge-1-original.jpg"))),
+            7
+        );
+    }
 }
+
