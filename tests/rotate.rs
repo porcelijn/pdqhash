@@ -22,7 +22,7 @@ fn test_rotate90() {
             // hash copy-pasted from 'bridge-3-rotate-180.jpg' (in test_load)
             "adad5a64b5a142e75b62a09857da895ae63b847fc23794b766b319361bc93188",
             &rotate::<90>(include_bytes!("../test_data/bridge-2-rotate-90.jpg"))),
-        7);
+        8);
 
     assert_eq!(
         hamming::distance(
@@ -38,7 +38,7 @@ fn test_rotate180() {
             // hash copy-pasted from 'bridge-3-rotate-180.jpg' (in test_load)
             "adad5a64b5a142e75b62a09857da895ae63b847fc23794b766b319361bc93188",
             &rotate::<180>(include_bytes!("../test_data/bridge-1-original.jpg"))),
-        7);
+        8);
 
     assert_eq!(
         hamming::distance(

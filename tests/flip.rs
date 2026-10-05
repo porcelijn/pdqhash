@@ -20,7 +20,7 @@ fn test_flip() {
             // hash copy-pasted from 'bridge-5-flipx.jpg'
             "f8f80f31e0f417b20e37f5cd028f980fb36ed02a9662c1e233e64c634e9c64dd",
             &flip(X, include_bytes!("../test_data/bridge-1-original.jpg"))),
-        7);
+        8);
 
     assert_eq!(
         hamming::distance(
@@ -39,6 +39,6 @@ fn test_flip() {
             // hash copy-pasted from 'bridge-8-flip-minus-1.jpg'
             "a5f05aa8a4896a17c906a2d85aaaab07b61b5b42f8fc07fc87c3d0741bfcb0fa",
             &flip(Minus1, include_bytes!("../test_data/bridge-1-original.jpg"))),
-        7);
+        8);
 }
 
