@@ -16,6 +16,7 @@ const LUMA_FROM_B_COEFF: f32 = 0.114;
 
 mod dct;
 mod downscaling;
+pub mod hamming;
 mod torben;
 mod transform;
 

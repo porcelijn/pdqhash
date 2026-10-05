@@ -1,8 +1,14 @@
+use pdqhash::hamming::distance as optimized_distance;
+
+use std::convert::TryInto;
 // Poor mans's Hamming distance for test fixtures
 pub fn distance(a: &str, b: &str) -> u32 {
-    let a = hex::decode(a).unwrap();
-    let b = hex::decode(b).unwrap();
-    assert_eq!(a.len(), 32);
-    assert_eq!(b.len(), 32);
-    std::iter::zip(a.iter(), b.iter()).map(|(a,b)| (a^b).count_ones()).sum()
+    fn decode(v: &str) -> [u8; 32] {
+        let v = hex::decode(v).unwrap();
+        assert_eq!(v.len(), 32);
+        let v: [u8; 32] = v.try_into().unwrap();
+        v
+    }
+
+    optimized_distance(&decode(a), &decode(b))
 }
