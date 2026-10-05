@@ -14,9 +14,10 @@ pub fn distance(x: &[u8; HASH_LENGTH], y: &[u8; HASH_LENGTH]) -> u32 {
     generic::distance(x, y)
 }
 
+#[inline(always)]
 const fn to_u64(x: &[u8]) -> u64 {
     assert!(x.len() == 8);
-    // big endian
+    // little endian
     (x[0] as u64) << (0 << 3) |
     (x[1] as u64) << (1 << 3) |
     (x[2] as u64) << (2 << 3) |
