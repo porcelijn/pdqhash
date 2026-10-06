@@ -15,22 +15,16 @@ pub fn distance(x: &[u8; HASH_LENGTH], y: &[u8; HASH_LENGTH]) -> u32 {
 }
 
 #[inline(always)]
-const fn to_u64(x: &[u8]) -> u64 {
-    assert!(x.len() == 8);
-    // little endian
-    (x[0] as u64) << (0 << 3) |
-    (x[1] as u64) << (1 << 3) |
-    (x[2] as u64) << (2 << 3) |
-    (x[3] as u64) << (3 << 3) |
-    (x[4] as u64) << (4 << 3) |
-    (x[5] as u64) << (5 << 3) |
-    (x[6] as u64) << (6 << 3) |
-    (x[7] as u64) << (7 << 3)
+fn get_u64<const N: usize>(x: &[u8; HASH_LENGTH]) -> u64 {
+    use std::convert::TryInto;
+    const MAX: usize = HASH_LENGTH / 8;
+    assert!(N < MAX, "index out of bounds: N={} < {}", N, MAX);
+    u64::from_le_bytes(x[8 * N .. 8 * (N + 1)].try_into().unwrap())
 }
 
 #[cfg(not(target_arch = "x86_64"))]
 mod generic {
-    use super::to_u64;
+    use super::get_u64;
     use crate::HASH_LENGTH;
 
     // https://en.wikipedia.org/wiki/Hamming_weight
@@ -55,42 +49,52 @@ mod generic {
     }
 
     pub fn weight(x: &[u8; HASH_LENGTH]) -> u32 {
-        popcount64d(to_u64(&x[8*0..8*1])) +
-        popcount64d(to_u64(&x[8*1..8*2])) +
-        popcount64d(to_u64(&x[8*2..8*3])) +
-        popcount64d(to_u64(&x[8*3..8*4]))
+        popcount64d(get_u64::<0>(x)) +
+        popcount64d(get_u64::<1>(x)) +
+        popcount64d(get_u64::<2>(x)) +
+        popcount64d(get_u64::<3>(x))
     }
 
     pub fn distance(x: &[u8; HASH_LENGTH], y: &[u8; HASH_LENGTH]) -> u32 {
-        popcount64d(to_u64(&x[8*0..8*1]) ^ to_u64(&y[8*0..8*1])) +
-        popcount64d(to_u64(&x[8*1..8*2]) ^ to_u64(&y[8*1..8*2])) +
-        popcount64d(to_u64(&x[8*2..8*3]) ^ to_u64(&y[8*2..8*3])) +
-        popcount64d(to_u64(&x[8*3..8*4]) ^ to_u64(&y[8*3..8*4]))
+        popcount64d(get_u64::<0>(x) ^ get_u64::<0>(y)) +
+        popcount64d(get_u64::<1>(x) ^ get_u64::<1>(y)) +
+        popcount64d(get_u64::<2>(x) ^ get_u64::<2>(y)) +
+        popcount64d(get_u64::<3>(x) ^ get_u64::<3>(y))
     }
 
 } // generic
 
 #[cfg(target_arch = "x86_64")]
 mod x86_64 {
-    use super::to_u64;
+    use super::get_u64;
     use crate::HASH_LENGTH;
 
     // Use (intel/amd) POPCNT intrinsic, 1 cycle throughput, 3 cycle latency
 
     #[cfg_attr(target_arch = "x86_64", target_feature(enable = "popcnt"))]
     pub unsafe fn weight(x: &[u8; HASH_LENGTH]) -> u32 {
-        to_u64(&x[8*0..8*1]).count_ones() +
-        to_u64(&x[8*1..8*2]).count_ones() +
-        to_u64(&x[8*2..8*3]).count_ones() +
-        to_u64(&x[8*3..8*4]).count_ones()
+        get_u64::<0>(x).count_ones() +
+        get_u64::<1>(x).count_ones() +
+        get_u64::<2>(x).count_ones() +
+        get_u64::<3>(x).count_ones()
     }
 
     #[cfg_attr(target_arch = "x86_64", target_feature(enable = "popcnt"))]
     pub unsafe fn distance(x: &[u8; HASH_LENGTH], y: &[u8; HASH_LENGTH]) -> u32 {
-        (to_u64(&x[8*0..8*1]) ^ to_u64(&y[8*0..8*1])).count_ones() +
-        (to_u64(&x[8*1..8*2]) ^ to_u64(&y[8*1..8*2])).count_ones() +
-        (to_u64(&x[8*2..8*3]) ^ to_u64(&y[8*2..8*3])).count_ones() +
-        (to_u64(&x[8*3..8*4]) ^ to_u64(&y[8*3..8*4])).count_ones()
+        (get_u64::<0>(x) ^ get_u64::<0>(y)).count_ones() +
+        (get_u64::<1>(x) ^ get_u64::<1>(y)).count_ones() +
+        (get_u64::<2>(x) ^ get_u64::<2>(y)).count_ones() +
+        (get_u64::<3>(x) ^ get_u64::<3>(y)).count_ones()
+    }
+
+    #[test]
+    fn test_weight() {
+        unsafe {
+            assert_eq!(0,   weight(&[0; HASH_LENGTH]));
+            assert_eq!(256, weight(&[!0; HASH_LENGTH]));
+            assert_eq!(32,  weight(&[1; HASH_LENGTH]));
+            assert_eq!(64,  weight(&[10; HASH_LENGTH]));
+        }
     }
 
 } // x86_64
