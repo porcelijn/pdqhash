@@ -201,8 +201,9 @@ const DCT_OUTPUT_W_H: usize = 16;
 type DctOutput = [f32; DCT_OUTPUT_W_H * DCT_OUTPUT_W_H];
 
 const HASH_LENGTH: usize = DCT_OUTPUT_W_H * DCT_OUTPUT_W_H / 8;
+type Hash = [u8; HASH_LENGTH];
 
-fn pdq_buffer16x16_to_bits(input: &DctOutput) -> [u8; HASH_LENGTH] {
+fn pdq_buffer16x16_to_bits(input: &DctOutput) -> Hash {
     let dct_median = torben::median(input).unwrap();
     let mut hash = [0; HASH_LENGTH];
 
@@ -222,7 +223,7 @@ fn pdq_buffer16x16_to_bits(input: &DctOutput) -> [u8; HASH_LENGTH] {
 /// Returns PDQ hash and quality of an image without first downscaling.
 ///
 /// It is bit-for-bit compatible with the expected output from the Java version provided by facebook.
-pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: &Transform) -> ([u8; HASH_LENGTH], f32) {
+pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: &Transform) -> (Hash, f32) {
     let (num_cols, num_rows, mut image) = to_luma_image(image);
     let window_size_along_rows = downscaling::compute_jarosz_filter_window_size(num_cols, BUFFER_W_H);
     let window_size_along_cols = downscaling::compute_jarosz_filter_window_size(num_rows, BUFFER_W_H);
@@ -253,7 +254,7 @@ pub fn generate_pdq_full_size(image: &image::DynamicImage, transform: &Transform
 /// This will first downsize the image in RGB space using image crate, which is more efficient than
 /// computing PDQ on the full size image. Some divergence from reference implementation is
 /// expected.
-pub fn generate_pdq(image: &image::DynamicImage, transform: &Transform) -> Option<([u8; HASH_LENGTH], f32)> {
+pub fn generate_pdq(image: &image::DynamicImage, transform: &Transform) -> Option<(Hash, f32)> {
     if image.width() < MIN_HASHABLE_DIM || image.height() < MIN_HASHABLE_DIM {
         return None;
     }
